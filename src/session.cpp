@@ -116,6 +116,10 @@ asio::awaitable<void> session::handle_packet() {
             co_await this->handle_authentication();
             break;
         }
+        default: {
+            this->stop();
+            break;
+        }
     }
 
     co_return;
@@ -136,7 +140,7 @@ asio::awaitable<void> session::handle_authentication() {
         co_return;
     }
 
-    if (ver != coro_socks::Version::V5) {
+    if (ver != 0x01) {
         this->stop();
         co_return;
     }
