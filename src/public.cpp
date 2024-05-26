@@ -2,7 +2,7 @@
 
 namespace coro_socks {
 
-std::string format_address(const std::string& bytes, uint8_t atyp) {
+std::string format_address(std::string_view bytes, uint8_t atyp) {
     switch (atyp) {
         case Atyp::IpV4: {
             return fmt::format("{:d}.{:d}.{:d}.{:d}", bytes[0], bytes[1],
@@ -21,7 +21,7 @@ std::string format_address(const std::string& bytes, uint8_t atyp) {
         }
     }
 
-    return bytes;
+    return std::string(bytes);
 }
 
 }    // namespace coro_socks

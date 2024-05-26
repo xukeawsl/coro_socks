@@ -51,7 +51,7 @@ struct ReplyRep {
 // clang-format on
 
 
-std::string format_address(const std::string& bytes, uint8_t atyp);
+std::string format_address(std::string_view bytes, uint8_t atyp);
 
 }
 

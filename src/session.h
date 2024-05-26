@@ -5,6 +5,8 @@
 class session
   : public std::enable_shared_from_this<session>
 {
+    enum class ProtocolType { TCP, UDP };
+
 public:
     session(asio::ip::tcp::socket socket);
 
@@ -25,13 +27,17 @@ private:
 
     asio::awaitable<void> handle_client_request();
 
-    asio::awaitable<void> handle_dns_resolve(const std::string& dst_addr, uint16_t dst_port);
-
-    asio::awaitable<bool> handle_connect();
+    asio::awaitable<void> handle_connect();
 
     asio::awaitable<void> handle_connect_cli_to_dst();
 
     asio::awaitable<void> handle_connect_dst_to_cli();
+
+    asio::awaitable<void> handle_udp_associate();
+
+    bool check_udp_sender_endpoint(const asio::ip::udp::endpoint& sender_endpoint);
+
+    asio::awaitable<void> handle_udp_associate_detail();
 
     asio::awaitable<void> reply_and_stop(uint8_t rep);
 
@@ -47,6 +53,8 @@ private:
     asio::steady_timer keep_alive_timer_;
     std::chrono::steady_clock::time_point deadline_;
 
-    asio::ip::tcp::endpoint tcp_dst_endpoint_;
     asio::ip::tcp::socket tcp_dst_socket_;
+
+    std::vector<asio::ip::udp::endpoint> udp_endpoints_;
+    std::unique_ptr<asio::ip::udp::socket> udp_socket_;
 };

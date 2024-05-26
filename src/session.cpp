@@ -197,17 +197,14 @@ asio::awaitable<void> session::handle_authentication() {
         co_return;
     }
 
-    ret = co_await this->handle_connect();
-    if (!ret) {
-        co_await this->reply_and_stop(coro_socks::ReplyRep::ConnRefused);
-        co_return;
-    }
+    co_await this->handle_client_request();
 
     co_return;
 }
 
 asio::awaitable<void> session::handle_client_request() {
     bool ret;
+    asio::error_code ec;
     uint8_t ver;
     uint8_t cmd;
     uint8_t rsv;
@@ -292,30 +289,85 @@ asio::awaitable<void> session::handle_client_request() {
 
     switch (cmd) {
         case coro_socks::RequestCmd::Connect: {
+            bool connect_success = false;
+
             if (atyp == coro_socks::Atyp::DomainName) {
-                co_await this->handle_dns_resolve(dst_addr, dst_port);
-                co_return;
+                asio::ip::tcp::resolver resolver(this->socket_.get_executor());
+                auto endpoints = co_await resolver.async_resolve(
+                    dst_addr, std::to_string(dst_port),
+                    asio::redirect_error(asio::use_awaitable, ec));
+
+                if (ec) {
+                    this->stop();
+                    co_return;
+                }
+
+                /*try to connect one endpoint from all endpoints*/
+                for (auto &&endpoint : endpoints) {
+                    co_await this->tcp_dst_socket_.async_connect(
+                        endpoint,
+                        asio::redirect_error(asio::use_awaitable, ec));
+                    if (!ec) {
+                        connect_success = true;
+                        break;
+                    }
+                }
+
+            } else {
+                auto addr = asio::ip::make_address(
+                    coro_socks::format_address(dst_addr, atyp), ec);
+                if (ec) {
+                    this->stop();
+                    co_return;
+                }
+
+                /*connect to the dst host*/
+                co_await this->tcp_dst_socket_.async_connect(
+                    asio::ip::tcp::endpoint(addr, dst_port),
+                    asio::redirect_error(asio::use_awaitable, ec));
+                if (!ec) {
+                    connect_success = true;
+                }
             }
 
-            asio::error_code ec;
-            auto addr = asio::ip::make_address(
-                coro_socks::format_address(dst_addr, atyp), ec);
-            if (ec) {
-                this->stop();
-                co_return;
-            }
-
-            this->tcp_dst_endpoint_ = asio::ip::tcp::endpoint(addr, dst_port);
-
-            ret = co_await this->handle_connect();
-            if (!ret) {
+            if (!connect_success) {
                 co_await this->reply_and_stop(
                     coro_socks::ReplyRep::ConnRefused);
                 co_return;
             }
+
+            co_await this->handle_connect();
+
             break;
         }
         case coro_socks::RequestCmd::UdpAssociate: {
+            if (atyp == coro_socks::Atyp::DomainName) {
+                asio::ip::udp::resolver resolver(this->socket_.get_executor());
+                auto endpoints = co_await resolver.async_resolve(
+                    dst_addr, std::to_string(dst_port),
+                    asio::redirect_error(asio::use_awaitable, ec));
+
+                if (endpoints.empty()) {
+                    co_await this->reply_and_stop(
+                        coro_socks::ReplyRep::HostUnreachable);
+                    co_return;
+                }
+
+                this->udp_endpoints_ = std::vector<asio::ip::udp::endpoint>(
+                    endpoints.begin(), endpoints.end());
+            } else {
+                auto addr = asio::ip::make_address(
+                    coro_socks::format_address(dst_addr, atyp), ec);
+                if (ec) {
+                    this->stop();
+                    co_return;
+                }
+
+                this->udp_endpoints_.emplace_back(addr, dst_port);
+            }
+
+            co_await this->handle_udp_associate();
+
             break;
         }
         default: {
@@ -328,61 +380,19 @@ asio::awaitable<void> session::handle_client_request() {
     co_return;
 }
 
-asio::awaitable<void> session::handle_dns_resolve(const std::string &dst_addr,
-                                                  uint16_t dst_port) {
-    bool ret;
-    asio::error_code ec;
-    asio::ip::tcp::resolver resolver(this->socket_.get_executor());
-
-    auto endpoints = co_await resolver.async_resolve(
-        dst_addr, std::to_string(dst_port),
-        asio::redirect_error(asio::use_awaitable, ec));
-    if (ec) {
-        this->stop();
-        co_return;
-    }
-
-    if (endpoints.empty()) {
-        this->stop();
-        co_return;
-    }
-
-    for (const auto &endpoint : endpoints) {
-        this->tcp_dst_endpoint_ = endpoint;
-
-        ret = co_await this->handle_connect();
-        if (ret) {
-            break;
-        }
-    }
-
-    if (!ret) {
-        co_await this->reply_and_stop(coro_socks::ReplyRep::ConnRefused);
-        co_return;
-    }
-
-    co_return;
-}
-
-asio::awaitable<bool> session::handle_connect() {
+asio::awaitable<void> session::handle_connect() {
     asio::error_code ec;
     uint8_t ver = coro_socks::Version::V5;
-    uint8_t rep;
+    uint8_t rep = coro_socks::ReplyRep::Succeeded;
     uint8_t rsv = 0x00;
     uint8_t atyp;
     std::string bnd_addr;
     uint16_t bnd_port;
 
-    co_await this->tcp_dst_socket_.async_connect(
-        this->tcp_dst_endpoint_, asio::redirect_error(asio::use_awaitable, ec));
-
-    if (ec) {
-        co_return false;
-    }
-
     auto tcp_bnd_endpoint = this->tcp_dst_socket_.local_endpoint(ec);
     if (ec) {
-        co_return false;
+        this->stop();
+        co_return;
     }
 
     if (tcp_bnd_endpoint.address().is_v4()) {
@@ -394,8 +404,6 @@ asio::awaitable<bool> session::handle_connect() {
         auto &&addr_bytes = tcp_bnd_endpoint.address().to_v6().to_bytes();
         bnd_addr = std::string(addr_bytes.begin(), addr_bytes.end());
     }
-
-    rep = coro_socks::ReplyRep::Succeeded;
 
     bnd_port = asio::detail::socket_ops::host_to_network_short(
         tcp_bnd_endpoint.port());
@@ -409,7 +417,8 @@ asio::awaitable<bool> session::handle_connect() {
     co_await asio::async_write(this->socket_, buf,
                                asio::redirect_error(asio::use_awaitable, ec));
     if (ec) {
-        co_return false;
+        this->stop();
+        co_return;
     }
 
     asio::co_spawn(
@@ -426,7 +435,7 @@ asio::awaitable<bool> session::handle_connect() {
         },
         asio::detached);
 
-    co_return true;
+    co_return;
 }
 
 asio::awaitable<void> session::handle_connect_cli_to_dst() {
@@ -481,6 +490,218 @@ asio::awaitable<void> session::handle_connect_dst_to_cli() {
     co_return;
 }
 
+asio::awaitable<void> session::handle_udp_associate() {
+    asio::error_code ec;
+    uint8_t ver = coro_socks::Version::V5;
+    uint8_t rep = coro_socks::ReplyRep::Succeeded;
+    uint8_t rsv = 0x00;
+    uint8_t atyp;
+    std::string bnd_addr;
+    uint16_t bnd_port;
+
+    if (this->udp_endpoints_[0].address().is_v4()) {
+        atyp = coro_socks::Atyp::IpV4;
+
+        this->udp_socket_ = std::make_unique<asio::ip::udp::socket>(
+            this->socket_.get_executor(), asio::ip::udp::v4(), 0);
+    } else {
+        atyp = coro_socks::Atyp::IpV6;
+
+        this->udp_socket_ = std::make_unique<asio::ip::udp::socket>(
+            this->socket_.get_executor(), asio::ip::udp::v6(), 0);
+    }
+
+    auto udp_bnd_endpoint = this->udp_socket_->local_endpoint(ec);
+    if (ec) {
+        this->stop();
+        co_return;
+    }
+
+    if (udp_bnd_endpoint.address().is_v4()) {
+        atyp = coro_socks::Atyp::IpV4;
+        auto &&addr_bytes = udp_bnd_endpoint.address().to_v4().to_bytes();
+        bnd_addr = std::string(addr_bytes.begin(), addr_bytes.end());
+    } else {
+        atyp = coro_socks::Atyp::IpV6;
+        auto &&addr_bytes = udp_bnd_endpoint.address().to_v6().to_bytes();
+        bnd_addr = std::string(addr_bytes.begin(), addr_bytes.end());
+    }
+
+    bnd_port = asio::detail::socket_ops::host_to_network_short(
+        udp_bnd_endpoint.port());
+
+    std::array<asio::const_buffer, 6> buf = {
+        {asio::buffer(&ver, 1), asio::buffer(&rep, 1), asio::buffer(&rsv, 1),
+         asio::buffer(&atyp, 1),
+         asio::buffer(bnd_addr.data(), bnd_addr.length()),
+         asio::buffer(&bnd_port, 2)}};
+
+    co_await asio::async_write(this->socket_, buf,
+                               asio::redirect_error(asio::use_awaitable, ec));
+    if (ec) {
+        this->stop();
+        co_return;
+    }
+
+    asio::co_spawn(
+        this->socket_.get_executor(),
+        [self = shared_from_this()] {
+            return self->handle_udp_associate_detail();
+        },
+        asio::detached);
+
+    co_return;
+}
+
+bool session::check_udp_sender_endpoint(
+    const asio::ip::udp::endpoint &sender_endpoint) {
+    for (auto &&udp_endpoint : this->udp_endpoints_) {
+        if (sender_endpoint == udp_endpoint) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+asio::awaitable<void> session::handle_udp_associate_detail() {
+    asio::error_code ec;
+    std::string buf;
+    uint16_t rsv;
+    uint8_t frag;
+    uint8_t atyp;
+    std::string_view dst_addr;
+    uint16_t dst_port;
+    std::string_view data;
+    asio::ip::udp::endpoint sender_endpoint;
+    asio::ip::udp::endpoint udp_cli_endpoint;
+    asio::ip::udp::endpoint udp_dst_endpoint;
+
+    while (this->socket_.is_open()) {
+        buf.clear();
+
+        std::size_t length = co_await this->udp_socket_->async_receive_from(
+            asio::dynamic_buffer(buf).prepare(1024), sender_endpoint,
+            asio::redirect_error(asio::use_awaitable, ec));
+        if (ec) {
+            this->stop();
+            co_return;
+        }
+
+        if (!udp_dst_endpoint.address().is_unspecified() &&
+            sender_endpoint == udp_dst_endpoint) {
+            co_await this->udp_socket_->async_send_to(
+                asio::buffer(buf.data(), length), udp_cli_endpoint,
+                asio::redirect_error(asio::use_awaitable, ec));
+
+            continue;
+        }
+
+        if (!this->udp_endpoints_[0].address().is_unspecified() &&
+            !this->check_udp_sender_endpoint(sender_endpoint)) {
+            continue;
+        }
+
+        udp_cli_endpoint = sender_endpoint;
+
+        /* this is a client request */
+        if (length <= 4) {
+            continue;
+        }
+
+        rsv = static_cast<uint16_t>(buf[0] << 8) + buf[1];
+        if (rsv != 0x0000) {
+            continue;
+        }
+
+        frag = buf[2];
+        if (frag) {
+            continue;
+        }
+
+        atyp = buf[3];
+
+        switch (atyp) {
+            case coro_socks::Atyp::IpV4: {
+                if (length <= static_cast<std::size_t>(4 + 4 + 2)) {
+                    continue;
+                }
+
+                dst_addr = std::string_view(buf.begin() + 4, buf.begin() + 8);
+                dst_port = static_cast<uint16_t>(buf[8] << 8) + buf[9];
+                data = std::string_view(buf.begin() + 10, buf.end());
+                break;
+            }
+            case coro_socks::Atyp::IpV6: {
+                if (length <= static_cast<std::size_t>(4 + 16 + 2)) {
+                    continue;
+                }
+
+                dst_addr = std::string_view(buf.begin() + 4, buf.begin() + 20);
+                dst_port = static_cast<uint16_t>(buf[20] << 8) + buf[21];
+                data = std::string_view(buf.begin() + 22, buf.end());
+                break;
+            }
+            case coro_socks::Atyp::DomainName: {
+                uint8_t dlen = buf[4];
+
+                if (length <= static_cast<std::size_t>(4 + 1 + dlen + 2)) {
+                    continue;
+                }
+
+                dst_addr =
+                    std::string_view(buf.begin() + 5, buf.begin() + 5 + dlen);
+                dst_port = static_cast<uint16_t>(buf[5 + dlen] << 8) +
+                           buf[5 + dlen + 1];
+                data = std::string_view(buf.begin() + 7 + dlen, buf.end());
+                break;
+            }
+            default: {
+                continue;
+            }
+        };
+
+        std::vector<asio::ip::udp::endpoint> udp_dst_endpoints;
+
+        if (atyp == coro_socks::Atyp::DomainName) {
+            asio::ip::udp::resolver resolver(this->socket_.get_executor());
+
+            auto endpoints = co_await resolver.async_resolve(
+                dst_addr, std::to_string(dst_port),
+                asio::redirect_error(asio::use_awaitable, ec));
+            if (ec) {
+                continue;
+            }
+
+            udp_dst_endpoints = std::vector<asio::ip::udp::endpoint>(
+                endpoints.begin(), endpoints.end());
+        } else {
+            auto addr = asio::ip::make_address(
+                coro_socks::format_address(dst_addr, atyp), ec);
+            if (ec) {
+                continue;
+            }
+
+            udp_dst_endpoints.emplace_back(addr, dst_port);
+        }
+
+        for (auto &&endpoint : udp_dst_endpoints) {
+            co_await this->udp_socket_->async_send_to(
+                asio::buffer(data.data(), data.length()), endpoint,
+                asio::redirect_error(asio::use_awaitable, ec));
+
+            if (ec) {
+                continue;
+            } else {
+                udp_dst_endpoint = endpoint;
+                break;
+            }
+        }
+    }
+
+    co_return;
+}
+
 asio::awaitable<void> session::reply_and_stop(uint8_t rep) {
     asio::error_code ec;
     uint8_t ver = coro_socks::Version::V5;
@@ -526,7 +747,7 @@ asio::awaitable<bool> session::read_port(uint16_t *port) noexcept {
         co_return false;
     }
 
-    *port = (uint16_t)(high << 8) + low;
+    *port = static_cast<uint16_t>(high << 8) + low;
 
     co_return true;
 }
