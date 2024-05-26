@@ -580,6 +580,8 @@ asio::awaitable<void> session::handle_udp_associate_detail() {
     while (this->socket_.is_open()) {
         buf.clear();
 
+        this->flush_deadline();
+
         std::size_t length = co_await this->udp_socket_->async_receive_from(
             asio::dynamic_buffer(buf).prepare(1024), sender_endpoint,
             asio::redirect_error(asio::use_awaitable, ec));
