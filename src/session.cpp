@@ -566,7 +566,7 @@ bool session::check_udp_sender_endpoint(
 
 asio::awaitable<void> session::handle_udp_associate_detail() {
     asio::error_code ec;
-    std::string buf;
+    std::string buf(UINT16_MAX, 0);
     uint16_t rsv;
     uint8_t frag;
     uint8_t atyp;
@@ -578,12 +578,10 @@ asio::awaitable<void> session::handle_udp_associate_detail() {
     asio::ip::udp::endpoint udp_dst_endpoint;
 
     while (this->socket_.is_open()) {
-        buf.clear();
-
         this->flush_deadline();
 
         std::size_t length = co_await this->udp_socket_->async_receive_from(
-            asio::dynamic_buffer(buf).prepare(1024), sender_endpoint,
+            asio::buffer(buf), sender_endpoint,
             asio::redirect_error(asio::use_awaitable, ec));
         if (ec) {
             this->stop();
