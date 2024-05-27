@@ -53,6 +53,18 @@ struct ReplyRep {
 
 std::string format_address(std::string_view bytes, uint8_t atyp);
 
+
+template <typename InternetProtocol>
+std::string format_address(
+    const asio::ip::basic_endpoint<InternetProtocol>& endpoint) {
+    if (endpoint.address().is_v6()) {
+        return "[" + endpoint.address().to_string() + "]" + ":" +
+               std::to_string(endpoint.port());
+    }
+    return endpoint.address().to_string() + ":" +
+           std::to_string(endpoint.port());
+}
+
 }
 
 

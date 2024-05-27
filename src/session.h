@@ -53,8 +53,11 @@ private:
     asio::steady_timer keep_alive_timer_;
     std::chrono::steady_clock::time_point deadline_;
 
+    asio::ip::tcp::endpoint client_endpoint_;
+    asio::ip::tcp::endpoint proxy_endpoint_;
     asio::ip::tcp::socket tcp_dst_socket_;
 
     std::vector<asio::ip::udp::endpoint> udp_endpoints_;
     std::unique_ptr<asio::ip::udp::socket> udp_socket_;
+    asio::ip::udp::endpoint udp_bnd_endpoint_;
 };
