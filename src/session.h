@@ -5,8 +5,6 @@
 class session
   : public std::enable_shared_from_this<session>
 {
-    enum class ProtocolType { TCP, UDP };
-
 public:
     session(asio::ip::tcp::socket socket);
 
