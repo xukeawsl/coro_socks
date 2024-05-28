@@ -515,8 +515,6 @@ asio::awaitable<void> session::handle_udp_associate() {
     std::string bnd_addr;
     uint16_t bnd_port;
 
-    SPDLOG_DEBUG("UDP ASSOCIATE - handle_udp_associate");
-
     if (this->udp_endpoints_[0].address().is_v4()) {
         atyp = coro_socks::Atyp::IpV4;
 
@@ -566,7 +564,8 @@ asio::awaitable<void> session::handle_udp_associate() {
     }
 
     SPDLOG_DEBUG(
-        "UDP ASSOCIATE - [Proxy: {} -> Client: {}] VER = [X'{:02X}'], REP = "
+        "UDP ASSOCIATE - [TCP Proxy: {} -> TCP Client: {}] VER = [X'{:02X}'], "
+        "REP = "
         "[X'{:02X}'], RSV = [X'{:02X}'], ATYP = [X'{:02X}'], "
         "BND.ADDR = [{}], BND.PORT = [{}]",
         coro_socks::format_address(this->proxy_endpoint_),
@@ -612,8 +611,6 @@ asio::awaitable<void> session::handle_udp_associate_detail() {
     asio::ip::udp::endpoint udp_cli_endpoint;
     asio::ip::udp::endpoint udp_dst_endpoint;
 
-    SPDLOG_DEBUG("UDP ASSOCIATE - handle_udp_associate_detail");
-
     while (this->socket_.is_open()) {
         this->flush_deadline();
 
@@ -623,12 +620,6 @@ asio::awaitable<void> session::handle_udp_associate_detail() {
         if (ec) {
             this->stop();
             co_return;
-        }
-
-        if (udp_dst_endpoint.address().is_unspecified() == false) {
-            SPDLOG_DEBUG("udp_dst_endpoint = {}, sender_endpoint = {}",
-                         coro_socks::format_address(udp_dst_endpoint),
-                         coro_socks::format_address(sender_endpoint));
         }
 
         /* dst to cli */
@@ -648,27 +639,29 @@ asio::awaitable<void> session::handle_udp_associate_detail() {
                 addr_bytes = std::string(bytes.begin(), bytes.end());
             }
 
-            dst_port = asio::detail::socket_ops::network_to_host_short(
+            dst_port = asio::detail::socket_ops::host_to_network_short(
                 udp_dst_endpoint.port());
 
-            std::array<asio::const_buffer, 6> buf = {
+            std::array<asio::const_buffer, 6> reply_buf = {
                 {asio::buffer(&rsv, 2), asio::buffer(&frag, 1),
                  asio::buffer(&atyp, 1),
                  asio::buffer(addr_bytes.data(), addr_bytes.length()),
                  asio::buffer(&dst_port, 2), asio::buffer(buf.data(), length)}};
 
             co_await this->udp_socket_->async_send_to(
-                buf, udp_cli_endpoint,
+                reply_buf, udp_cli_endpoint,
                 asio::redirect_error(asio::use_awaitable, ec));
 
             SPDLOG_DEBUG(
-                "UDP ASSOCIATE - [Proxy {} -> Client {}] RSV = [X'{:04X}'], "
+                "UDP ASSOCIATE - [UDP Proxy {} -> UDP Client {}] RSV = "
+                "[X'{:04X}'], "
                 "FRAG = [X'{:02X}'],"
                 "ATYP = [X'{:02X}'], DST.ADDR = [{}], DST.PORT = [{}]",
                 coro_socks::format_address(this->udp_bnd_endpoint_),
                 coro_socks::format_address(udp_cli_endpoint), rsv,
                 static_cast<uint16_t>(frag), static_cast<uint16_t>(atyp),
-                coro_socks::format_address(addr_bytes, atyp), dst_port);
+                coro_socks::format_address(addr_bytes, atyp),
+                udp_dst_endpoint.port());
 
             continue;
         }
@@ -729,7 +722,8 @@ asio::awaitable<void> session::handle_udp_associate_detail() {
                     std::string_view(buf.begin() + 5, buf.begin() + 5 + dlen);
                 dst_port = static_cast<uint16_t>(buf[5 + dlen] << 8) +
                            buf[5 + dlen + 1];
-                data = std::string_view(buf.begin() + 7 + dlen, buf.end());
+                data = std::string_view(buf.begin() + 7 + dlen,
+                                        buf.begin() + length);
                 break;
             }
             default: {
@@ -738,7 +732,8 @@ asio::awaitable<void> session::handle_udp_associate_detail() {
         };
 
         SPDLOG_DEBUG(
-            "UDP ASSOCIATE - [Client {} -> Proxy {}] RSV = [X'{:04X}'], FRAG = "
+            "UDP ASSOCIATE - [UDP Client {} -> UDP Proxy {}] RSV = "
+            "[X'{:04X}'], FRAG = "
             "[X'{:02X}'], "
             "ATYP = [X'{:02X}'], DST.ADDR = [{}], DST.PORT = [{}]",
             coro_socks::format_address(udp_cli_endpoint),
@@ -781,7 +776,7 @@ asio::awaitable<void> session::handle_udp_associate_detail() {
                 continue;
             } else {
                 SPDLOG_DEBUG(
-                    "UDP ASSOCIATE - [Proxy {} -> Server {}] "
+                    "UDP ASSOCIATE - [UDP Proxy {} -> UDP Server {}] "
                     "Data Length = [{}]",
                     coro_socks::format_address(this->udp_bnd_endpoint_),
                     coro_socks::format_address(endpoint), data.length());
