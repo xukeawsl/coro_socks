@@ -536,12 +536,10 @@ asio::awaitable<void> session::handle_udp_associate() {
     }
 
     if (this->udp_bnd_endpoint_.address().is_v4()) {
-        atyp = coro_socks::Atyp::IpV4;
         auto &&addr_bytes =
             this->udp_bnd_endpoint_.address().to_v4().to_bytes();
         bnd_addr = std::string(addr_bytes.begin(), addr_bytes.end());
     } else {
-        atyp = coro_socks::Atyp::IpV6;
         auto &&addr_bytes =
             this->udp_bnd_endpoint_.address().to_v6().to_bytes();
         bnd_addr = std::string(addr_bytes.begin(), addr_bytes.end());
