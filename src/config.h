@@ -17,6 +17,8 @@ public:
 
     inline uint32_t worker_process_num() const { return this->worker_process_num_; }
 
+    inline bool daemon() const { return daemon_; }
+
     inline uint32_t keep_alive_time() const { return this->keep_alive_time_; }
 
     inline uint32_t check_duration() const { return this->check_duration_; }
@@ -40,6 +42,7 @@ private:
     std::string address_;
     uint16_t port_;
     uint32_t worker_process_num_;
+    bool daemon_;
     uint32_t keep_alive_time_;
     uint32_t check_duration_;
     bool auth_;

@@ -13,17 +13,15 @@
 #include "spdlog/sinks/rotating_file_sink.h"
 #include "spdlog/spdlog.h"
 
-#include "config.h"
-
 #ifndef ASIOMP_PROC_NAME
 #define ASIOMP_PROC_NAME "asiomp"
 #endif
 
 class asiomp_server {
 public:
-    asiomp_server(char **argv, const std::string& host, uint16_t port);
+    asiomp_server(char **argv, const std::string& host, uint16_t port, bool daemon);
 
-    asiomp_server(char **argv, const std::string& host, uint16_t port, uint32_t worker_num);
+    asiomp_server(char **argv, const std::string& host, uint16_t port, uint32_t worker_num, bool deamon);
 
     ~asiomp_server();
 
@@ -41,6 +39,8 @@ private:
     void stop_server();
 
     void init();
+
+    bool set_daemon();
 
     void init_setproctitle();
 
@@ -78,6 +78,7 @@ private:
     bool single_mode;
     bool isworker;
     bool terminate;
+    bool isdaemon;
     std::vector<process_t> processes;
 
     std::string log_dir;

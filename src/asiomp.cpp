@@ -25,7 +25,7 @@ static char* cpystrn(char* dst, const char* src, size_t n) {
 }
 
 asiomp_server::asiomp_server(char** argv, const std::string& host,
-                             uint16_t port)
+                             uint16_t port, bool daemon)
     : os_argv(argv),
       os_argv_last(argv[0]),
       io_context(1),
@@ -34,10 +34,11 @@ asiomp_server::asiomp_server(char** argv, const std::string& host,
       listen_endpoint(asio::ip::make_address(host), port),
       single_mode(true),
       isworker(false),
-      terminate(false) {}
+      terminate(false),
+      isdaemon(daemon) {}
 
 asiomp_server::asiomp_server(char** argv, const std::string& host,
-                             uint16_t port, uint32_t worker_num)
+                             uint16_t port, uint32_t worker_num, bool daemon)
     : os_argv(argv),
       os_argv_last(argv[0]),
       io_context(1),
@@ -47,6 +48,7 @@ asiomp_server::asiomp_server(char** argv, const std::string& host,
       single_mode(false),
       isworker(false),
       terminate(false),
+      isdaemon(daemon),
       processes(worker_num) {}
 
 asiomp_server::~asiomp_server() { spdlog::shutdown(); }
@@ -69,6 +71,12 @@ void asiomp_server::run() noexcept {
 void asiomp_server::stop_server() { this->io_context.stop(); }
 
 void asiomp_server::init() {
+    if (this->isdaemon) {
+        if (!this->set_daemon()) {
+            exit(EXIT_FAILURE);
+        }
+    }
+
     this->init_setproctitle();
     this->set_proctitle("master process");
 
@@ -94,6 +102,47 @@ void asiomp_server::init() {
     this->acceptor.set_option(asio::ip::tcp::acceptor::reuse_address(true));
     this->acceptor.bind(this->listen_endpoint);
     this->acceptor.listen();
+}
+
+bool asiomp_server::set_daemon() {
+    this->io_context.notify_fork(asio::io_context::fork_prepare);
+
+    if (pid_t pid = fork()) {
+        if (pid > 0) {
+            exit(EXIT_SUCCESS);
+        } else {
+            return false;
+        }
+    }
+
+    if (setsid() == -1) {
+        return false;
+    }
+
+    umask(0);
+
+    int fd = open("/dev/null", O_RDWR);
+    if (fd == -1) {
+        return false;
+    }
+
+    if (dup2(fd, STDIN_FILENO) == -1) {
+        return false;
+    }
+
+    if (dup2(fd, STDOUT_FILENO) == -1) {
+        return false;
+    }
+
+    if (fd > STDERR_FILENO) {
+        if (close(fd) == -1) {
+            return false;
+        }
+    }
+
+    this->io_context.notify_fork(asio::io_context::fork_child);
+
+    return true;
 }
 
 void asiomp_server::init_setproctitle() {

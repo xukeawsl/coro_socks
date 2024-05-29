@@ -1,6 +1,7 @@
 #pragma once
 
 #include "asiomp.h"
+#include "config.h"
 
 class session
   : public std::enable_shared_from_this<session>

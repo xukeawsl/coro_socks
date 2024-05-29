@@ -11,6 +11,7 @@ socks_config::socks_config()
     : address_("127.0.0.1"),
       port_(1080),
       worker_process_num_(std::thread::hardware_concurrency()),
+      daemon_(true),
       keep_alive_time_(30),
       check_duration_(1),
       auth_(false) {}
@@ -41,6 +42,10 @@ bool socks_config::parse(const std::string& file) {
             }
         }
 
+        if (nodeServer["daemon"].IsDefined()) {
+            this->daemon_ = nodeServer["daemon"].as<bool>();
+        }
+
         if (!nodeServer["protocol"].IsDefined()) {
             return true;
         }
@@ -65,6 +70,11 @@ bool socks_config::parse(const std::string& file) {
             for (const auto& credential : nodeProtocol["credentials"]) {
                 auto username = credential["username"].as<std::string>();
                 auto password = credential["password"].as<std::string>();
+
+                if (username.empty() || password.empty()) {
+                    throw std::runtime_error(
+                        "The username and password cannot be empty");
+                }
 
                 this->credentials_[username] = password;
             }

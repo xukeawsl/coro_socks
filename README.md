@@ -22,6 +22,8 @@ A high-performance socks5 server implemented using C++20 asio coroutine and [asi
 
 * Using multiple processes and coroutines
 
+* Support daemon processes mode
+
 ## Build with CMake
 
 ```bash
@@ -35,7 +37,7 @@ cmake --build .
 
 ```yaml
 server:
-  # listening address
+  # listening address (default 0.0.0.0)
   address: '0.0.0.0'
 
   # listening port (default 1080)
@@ -45,6 +47,9 @@ server:
   # when num == 1, use singal worker process mode
   # when num  > 1, use master-worker process mode
   worker_process_num: 0
+
+  # work in daemon mode (default true)
+  daemon: true
 
   protocol:
     # keep alive time (default 30s)
