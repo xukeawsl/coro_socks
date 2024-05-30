@@ -10,8 +10,8 @@ server:
   # when num  > 1, use master-worker process mode
   worker_process_num: 0
 
-  # work in daemon mode (default true)
-  daemon: true
+  # work in daemon mode (default false)
+  daemon: false
 
   protocol:
     # keep alive time (default 30s)
