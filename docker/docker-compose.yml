@@ -1,0 +1,25 @@
+version: '2.0'
+
+services:
+  server:
+    image: xukeawsl/coro_socks:latest
+    container_name: coro_socks
+
+    ports:
+      - 1080:1080
+
+    volumes:
+      - /etc/coro_socks/logs:/root/coro_socks/build/logs
+
+    environment:
+      - TZ=Asia/Shanghai
+
+    restart: always
+
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '5'
+    
+    privileged: true

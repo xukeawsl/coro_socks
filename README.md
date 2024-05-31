@@ -24,6 +24,8 @@ A high-performance socks5 server implemented using C++20 asio coroutine and [asi
 
 * Support daemon processes mode
 
+* Support docker-compose deployment
+
 ## Build with CMake
 
 ```bash
@@ -67,4 +69,12 @@ server:
         password: 'coro_socks_pswd1'
       - username: 'coro_socks_user2'
         password: 'coro_socks_pswd2'
+```
+
+## Deploy with docker-compose
+
+```bash
+git clone https://github.com/xukeawsl/coro_socks.git
+cd docker
+docker-compose up -d
 ```
