@@ -7,14 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
 
 include(cmake/settings.cmake)
 
-if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Choose Release or Debug" FORCE)
-endif()
-
-set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g -ggdb -Wall")
-set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wno-unused")
-
-add_subdirectory(third-party/spdlog)
+add_subdirectory(third-party/asiomp)
 
 include(FetchContent)
 
@@ -36,18 +29,12 @@ file(GLOB_RECURSE hrds ${PROJECT_SOURCE_DIR}/src/*.h)
 
 include_directories(
     src
-    third-party/asio/asio/include
 )
 
 add_executable(${PROJECT_NAME} main.cpp ${srcs})
 
-target_compile_definitions(${PROJECT_NAME} PRIVATE
-    ASIOMP_PROC_NAME="${PROJECT_NAME}"
-)
-
 target_link_libraries(${PROJECT_NAME} PUBLIC
-    pthread
-    spdlog::spdlog
+    asiomp
     yaml-cpp::yaml-cpp
 )
 
