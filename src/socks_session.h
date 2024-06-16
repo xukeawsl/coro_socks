@@ -11,7 +11,7 @@ public:
 
     ~socks_session();
 
-    void start();
+    void start() override;
 
 private:
     void stop();

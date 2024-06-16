@@ -5,8 +5,6 @@ project(coro_socks)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
 
-include(cmake/settings.cmake)
-
 add_subdirectory(third-party/asiomp)
 
 include(FetchContent)

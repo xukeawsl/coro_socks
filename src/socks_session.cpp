@@ -28,12 +28,16 @@ void socks_session::start() {
 
     asio::co_spawn(
         this->socket_.get_executor(),
-        [self = shared_from_this()] { return self->handle_packet(); },
+        [self = getDerivedSharedPtr<socks_session>()] {
+            return self->handle_packet();
+        },
         asio::detached);
 
     asio::co_spawn(
         this->socket_.get_executor(),
-        [self = shared_from_this()] { return self->handle_keep_alive(); },
+        [self = getDerivedSharedPtr<socks_session>()] {
+            return self->handle_keep_alive();
+        },
         asio::detached);
 }
 
@@ -439,14 +443,14 @@ asio::awaitable<void> socks_session::handle_connect() {
 
     asio::co_spawn(
         this->socket_.get_executor(),
-        [self = shared_from_this()] {
+        [self = getDerivedSharedPtr<socks_session>()] {
             return self->handle_connect_cli_to_dst();
         },
         asio::detached);
 
     asio::co_spawn(
         this->socket_.get_executor(),
-        [self = shared_from_this()] {
+        [self = getDerivedSharedPtr<socks_session>()] {
             return self->handle_connect_dst_to_cli();
         },
         asio::detached);
@@ -577,7 +581,7 @@ asio::awaitable<void> socks_session::handle_udp_associate() {
 
     asio::co_spawn(
         this->socket_.get_executor(),
-        [self = shared_from_this()] {
+        [self = getDerivedSharedPtr<socks_session>()] {
             return self->handle_udp_associate_detail();
         },
         asio::detached);
@@ -839,7 +843,7 @@ asio::awaitable<bool> socks_session::read_port(uint16_t *port) noexcept {
 }
 
 asio::awaitable<bool> socks_session::read_bytes_n(std::string &bytes,
-                                            uint32_t n) noexcept {
+                                                  uint32_t n) noexcept {
     asio::error_code ec;
 
     if (n == 0) {

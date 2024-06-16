@@ -1,0 +1,3 @@
+[submodule "third-party/asiomp"]
+	path = third-party/asiomp
+	url = https://github.com/xukeawsl/asiomp.git
