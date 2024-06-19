@@ -5,6 +5,12 @@ project(coro_socks)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
 
+if(NOT DEFINED PROC_NAME)
+    set(PROC_NAME ${PROJECT_NAME} CACHE STRING "Process name variable" FORCE)
+endif()
+
+message(STATUS "PROC_NAME: ${PROC_NAME}")
+
 add_subdirectory(third-party/asiomp)
 
 include(FetchContent)
@@ -33,6 +39,8 @@ add_executable(${PROJECT_NAME} main.cpp ${srcs})
 
 target_link_libraries(${PROJECT_NAME} PUBLIC
     asiomp
+    pthread
+    spdlog::spdlog
     yaml-cpp::yaml-cpp
 )
 

@@ -31,7 +31,7 @@ A high-performance socks5 server implemented using C++20 asio coroutine and [asi
 ```bash
 git clone --recurse-submodules https://github.com/xukeawsl/coro_socks.git
 mkdir build && cd build
-cmake -DCMAKE_BUILD_TYPE=Release -DPROC_NAME=coro_socks ..
+cmake -DCMAKE_BUILD_TYPE=Release ..
 cmake --build .
 ```
 
