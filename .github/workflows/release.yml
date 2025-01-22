@@ -84,15 +84,11 @@ jobs:
 
     - name: Upload release assets
       run: |
-        # 遍历每个目录并找到打包好的文件
-        for dir in artifacts/*; do
-          if [[ -d "$dir" ]]; then
-            file=$(find "$dir" -type f \( -name "*.zip" -o -name "*.tar.gz" \))
-            if [[ -n "$file" ]]; then
-              name=$(basename "$file")
-              echo "Uploading $name..."
-              gh release upload ${{ github.ref_name }} "$file" --clobber
-            fi
+        for file in artifacts/*; do
+          if [[ -f "$file" ]]; then
+            name=$(basename "$file")
+            echo "Uploading $name..."
+            gh release upload ${{ github.ref_name }} "$file" --clobber
           fi
         done
       shell: bash
