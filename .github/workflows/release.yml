@@ -22,6 +22,7 @@ jobs:
         wget https://github.com/Kitware/CMake/releases/download/v3.20.0/cmake-3.20.0-linux-x86_64.tar.gz
         tar -xvf cmake-3.20.0-linux-x86_64.tar.gz
         sudo mv cmake-3.20.0-linux-x86_64 /opt/cmake-3.20.0.-linux-x86_64
+        sudo rm /usr/local/bin/cmake
         sudo ln -s /opt/cmake-3.20.0.-linux-x86_64/bin/cmake /usr/local/bin/cmake
       shell: bash
 
