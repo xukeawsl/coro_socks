@@ -5,6 +5,8 @@ project(coro_socks)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
 
+set(BUILD_SHARED_LIBS OFF)
+
 if(NOT DEFINED PROC_NAME)
     set(PROC_NAME ${PROJECT_NAME} CACHE STRING "Process name variable" FORCE)
 endif()
@@ -48,14 +50,14 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
 # Clang-Format
 #
 find_program(CLANG_FORMAT_EXECUTABLE
-    NAME "clang-format"
+    NAME "clang-format-12"
     PATHS "/usr/bin" "/usr/local/bin"
 )
 
 if (CLANG_FORMAT_EXECUTABLE)
-    message(STATUS "Successfully find program `clang-format`")
+    message(STATUS "Successfully find program `clang-format-12`")
     message(STATUS "You can use the `make clang-format` command to automatically format the code style")
-    add_custom_target(socks-format ALL
+    add_custom_target(socks-format
     COMMAND
         ${CLANG_FORMAT_EXECUTABLE} --style=file -i ${hdrs};${srcs};${PROJECT_SOURCE_DIR}/main.cpp
     COMMENT
