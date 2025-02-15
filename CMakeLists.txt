@@ -56,7 +56,7 @@ find_program(CLANG_FORMAT_EXECUTABLE
 
 if (CLANG_FORMAT_EXECUTABLE)
     message(STATUS "Successfully find program `clang-format-12`")
-    message(STATUS "You can use the `make clang-format` command to automatically format the code style")
+    message(STATUS "You can use the `make socks-format` command to automatically format the code style")
     add_custom_target(socks-format
     COMMAND
         ${CLANG_FORMAT_EXECUTABLE} --style=file -i ${hdrs};${srcs};${PROJECT_SOURCE_DIR}/main.cpp
